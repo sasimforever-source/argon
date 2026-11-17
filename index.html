@@ -7,6 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1318">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="🐉 아르곤(ARGON) 2: 급강하 스매시 (FS forever!)">
 <meta property="og:description" content="아기 드래곤으로 날고, 내리꽂고, 콤보로 RUSH! 오늘의 맵으로 단톡방 배틀에 도전하세요!">
@@ -155,6 +157,7 @@
   <p class="muted" style="margin-top:12px">왼쪽 화면 <b style="color:#7bed9f">탭 = 점프</b> · <b style="color:#7bed9f">꾹 = 활강</b>&nbsp;&nbsp;|&nbsp;&nbsp;오른쪽 화면 <b style="color:#ffb142">꾹 = 급강하 스매시</b></p>
   <p class="muted" style="font-size:12px">착지 전에 연속으로 찍으면 콤보 · 8콤보면 ARGON RUSH! (PC: 마우스 왼쪽·오른쪽 또는 ↑ / ↓ / Space)</p>
   <div class="row" style="margin-top:8px">
+    <button class="btn sm" id="bigBtn" style="display:none;background:#7df9ff;box-shadow:0 5px 0 #2aa7b0">⛶ 크게 보기</button>
     <button class="btn sm alt" id="demoBtn">▶ 20초 데모</button>
     <button class="btn sm ghost" id="helpBtn">❓ 게임 방법</button>
     <button class="btn sm ghost" id="setBtn">⚙️ 설정</button>
@@ -2526,7 +2529,10 @@ function refreshTitle() {
   const sk = streakNow();
   $('dailyLabel').textContent = `${seedLabel(ts)} · 최고 ${fmt(LS.get(bestKey('daily', ts), 0))}` + (sk >= 2 ? ` · 📅${sk}일 연속` : '');
   $('freeLabel').textContent = `최고 ${fmt(LS.get('argon2_best_free', 0))}`;
-  $('iosTip').style.display = isIOS && !navigator.standalone ? 'block' : 'none';
+  const web = location.protocol.indexOf('http') === 0, app = isStandaloneApp();
+  $('iosTip').style.display = web && isTouch && !isKakao && !app ? 'block' : 'none';   // 브라우저로 열었을 때: 홈 화면에 추가하면 앱처럼 꽉 참
+  $('iosTip').textContent = isIOS ? "아이폰: 아래 공유 버튼 → '홈 화면에 추가'로 열면 주소창 없이 꽉 찬 화면으로 할 수 있어" : "크롬 메뉴 ⋮ → '홈 화면에 추가'(앱 설치)로 열면 주소창 없이 꽉 찬 화면으로 할 수 있어";
+  setupBigBtn();
   const fresh = !LS.get('argon2_demo_seen', 0);
   $('demoBtn').classList.toggle('pulse', fresh); $('demoBtn').textContent = fresh ? '▶ 처음이면 20초 데모!' : '▶ 20초 데모';
   $('helpBtn').classList.remove('pulse'); $('helpBtn').textContent = '❓ 게임 방법';
@@ -2593,6 +2599,32 @@ $('endCardBtn').addEventListener('click', shareCard);
 // ===== 카톡으로 돌아가기 / 자랑하기 =====
 // 카톡 인앱 브라우저 닫기 스킴은 카카오 비공식(커뮤니티에서 쓰는 방식) → 안 닫히면 안내 문구
 const isKakao = /KAKAOTALK/i.test(navigator.userAgent);
+function isStandaloneApp() {   // 홈 화면에 추가해서 앱처럼 연 상태인지
+  try { if (window.matchMedia && (matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches)) return true; } catch (e) { }
+  return navigator.standalone === true;
+}
+function setupBigBtn() {   // '크게 하기' 버튼: 카톡 안이면 바깥 브라우저로, 안드로이드 브라우저면 전체 화면으로
+  const b = $('bigBtn'); if (!b) return;
+  let m = '';
+  if (!isStandaloneApp() && location.protocol.indexOf('http') === 0) {
+    if (isKakao) m = 'ext';
+    else if (isTouch && !isIOS && document.documentElement.requestFullscreen) m = 'fs';
+  }
+  b.dataset.m = m; b.style.display = m ? '' : 'none';
+  b.textContent = m === 'ext' ? (isIOS ? '📱 크게 하기 (사파리로 열기)' : '📱 크게 하기 (크롬으로 열기)') : (document.fullscreenElement ? '↩ 원래 크기로' : '⛶ 크게 보기');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('#bigBtn')) return;
+  const m = $('bigBtn').dataset.m;
+  if (m === 'ext') { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); return; }
+  if (m === 'fs') {
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => { }); return; }
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+      try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { }); } catch (err) { }
+    }).catch(() => toast("이 브라우저는 '크게 보기'가 안 돼. 메뉴에서 '홈 화면에 추가'로 열어 봐"));
+  }
+});
+document.addEventListener('fullscreenchange', () => { setupBigBtn(); setTimeout(resize, 120); });
 function backToKakao() {
   if (state === 'play' && !paused) setPause(true);
   if (isKakao) {
